@@ -1,0 +1,2526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting answers from a spreadsheet, without an expert and without much data</title>
+
+<style>
+  /* minimal reset */
+  *, *::before, *::after { box-sizing: border-box; }
+  body, h1, h2, h3, h4, p, figure, figcaption, ul, ol, table, dl { margin: 0; }
+  img, svg { max-width: 100%; }
+  button { font: inherit; color: inherit; }
+
+  :root {
+    color-scheme: light;
+    --paper:      #f6f7f2;
+    --stripe:     #e7ede1;
+    --panel:      #ffffff;
+    --ink:        #14201a;
+    --ink-soft:   #566055;
+    --ink-faint:  #7c857a;
+    --rule:       #ccd4c4;
+    --rule-soft:  #dfe5d8;
+    --tabfm:      #2a78d6;
+    --trad:       #eb6834;
+    --logit:      #1baf7a;
+    --warn:       #9a5b12;
+
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --body: "Sitka Text", Charter, "Bitstream Charter", Cambria, Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --paper:     #141815;
+      --stripe:    #1b211c;
+      --panel:     #191e1a;
+      --ink:       #eef1ea;
+      --ink-soft:  #a9b2a6;
+      --ink-faint: #7f887d;
+      --rule:      #2f382f;
+      --rule-soft: #232b24;
+      --tabfm:     #3987e5;
+      --trad:      #ef7a4c;
+      --logit:     #2ec78d;
+      --warn:      #d69a4a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper:     #141815;
+    --stripe:    #1b211c;
+    --panel:     #191e1a;
+    --ink:       #eef1ea;
+    --ink-soft:  #a9b2a6;
+    --ink-faint: #7f887d;
+    --rule:      #2f382f;
+    --rule-soft: #232b24;
+    --tabfm:     #3987e5;
+    --trad:      #ef7a4c;
+    --logit:     #2ec78d;
+    --warn:      #d69a4a;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --paper:     #f6f7f2;
+    --stripe:    #e7ede1;
+    --panel:     #ffffff;
+    --ink:       #14201a;
+    --ink-soft:   #566055;
+    --ink-faint: #7c857a;
+    --rule:      #ccd4c4;
+    --rule-soft: #dfe5d8;
+    --tabfm:     #2a78d6;
+    --trad:      #eb6834;
+    --logit:     #1baf7a;
+    --warn:      #9a5b12;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.64;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  /* ---------- masthead ---------- */
+  header.masthead {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 56px 0 30px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .runhead {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin-bottom: 26px;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(26px, 4.4vw, 40px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    font-weight: 700;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: clamp(17px, 2.2vw, 20px);
+    color: var(--ink-soft);
+    margin: 0 0 14px;
+    max-width: 36em;
+    text-wrap: pretty;
+  }
+
+  /* ---------- headings ---------- */
+  h2 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--rule);
+  }
+  .sect { margin-top: 56px; }
+  h3 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -.005em;
+    margin: 32px 0 8px;
+  }
+  p { margin: 0 0 16px; text-wrap: pretty; }
+  .lede { font-size: 19px; }
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    background: var(--panel);
+    border: 1px solid var(--rule-soft);
+    padding: 1px 5px;
+  }
+
+  a { color: var(--tabfm); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--tabfm); outline-offset: 3px; border-radius: 2px; }
+
+  /* ---------- figure panel ---------- */
+  .greenbar {
+    margin: 40px auto;
+    max-width: 880px;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        var(--stripe) 0 26px,
+        var(--panel)  26px 52px
+      );
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 30px 26px 22px;
+  }
+  .greenbar figure { margin: 0; }
+  .greenbar svg { display: block; width: 100%; height: auto; }
+  figcaption {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.58;
+    color: var(--ink-soft);
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    max-width: 62em;
+  }
+  .fignum {
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .scroller { overflow-x: auto; }
+
+  /* ---------- side-by-side comparison ---------- */
+  .analogy {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    width: min(880px, calc(100vw - 40px));
+    margin: 34px 0 34px 50%;
+    transform: translateX(-50%);
+  }
+  .analogy > div { background: var(--panel); padding: 22px 22px 24px; }
+  .who {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+  .analogy .trad  .who { color: var(--trad); }
+  .analogy .lin   .who { color: var(--logit); }
+  .analogy .tab   .who { color: var(--tabfm); }
+  .analogy h4 {
+    font-family: var(--body);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    line-height: 1.25;
+  }
+  .analogy p { font-size: 16px; margin: 0 0 10px; color: var(--ink-soft); }
+  .analogy p:last-child { margin-bottom: 0; }
+
+  /* ---------- scoreboards ---------- */
+  .boards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 28px 0 20px;
+  }
+  .board {
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    padding: 18px 18px 16px;
+  }
+  .board .title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 6px;
+  }
+  .board .sub { font-size: 15px; color: var(--ink-soft); margin: 0 0 14px; }
+  .metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 0;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric .k { color: var(--ink-soft); }
+  .metric .v { font-weight: 700; font-size: 17px; }
+  .v.bad  { color: var(--trad); }
+  .v.ok   { color: var(--tabfm); }
+  .verdict {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule-soft);
+    color: var(--ink-soft);
+  }
+
+  /* ---------- tables ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15.5px;
+    margin: 24px 0 10px;
+  }
+  caption {
+    caption-side: top;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-bottom: 10px;
+  }
+  th, td {
+    text-align: left;
+    padding: 11px 14px 11px 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-weight: 700;
+  }
+  tbody th { font-family: var(--body); font-weight: 700; padding-right: 20px; }
+  td.pick { font-family: var(--mono); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  td.pick.t { color: var(--tabfm); }
+  td.pick.g { color: var(--trad); }
+
+  table.num { font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  table.num td, table.num th { padding: 9px 16px 9px 0; white-space: nowrap; }
+  table.num td.n { color: var(--ink-soft); }
+  .c-tab { color: var(--tabfm); font-weight: 700; }
+  .c-gb  { color: var(--trad);  font-weight: 700; }
+  .dash  { color: var(--ink-faint); }
+
+  table.data { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 6px 12px 6px 0; white-space: nowrap; border-bottom: 1px solid var(--rule-soft); }
+  table.data thead th { font-size: 10px; letter-spacing: .06em; }
+  table.data td.y { color: var(--trad); font-weight: 700; }
+  table.data td.miss { color: var(--warn); font-style: italic; }
+
+  /* The two-rulers table. Its first column carries the QUESTION each measure asks,
+     under the measure's name, because the whole confusion it exists to remove is that
+     77.0% and 0.792 look like rival answers to one question when they are answers to
+     two different ones. Deliberately NO `white-space: nowrap` anywhere: that is what
+     pushed the limits table to 1068px against A4's 680px of content width, and on
+     paper nothing rescues an overflow the way `.scroller` does on screen. */
+  table.rulers { font-size: 14.5px; margin: 18px 0 16px; }
+  table.rulers th, table.rulers td { padding: 10px 16px 10px 0; }
+  table.rulers tbody td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  table.rulers tbody td:first-child { font-family: var(--body); }
+  table.rulers .asks {
+    display: block;
+    font-family: var(--body);
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    margin-top: 4px;
+  }
+
+  /* ---------- callout ---------- */
+  .callout {
+    border-left: 3px solid var(--warn);
+    background: var(--panel);
+    padding: 18px 20px 4px;
+    margin: 30px 0;
+  }
+  .callout .title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--warn);
+    margin: 0 0 10px;
+  }
+  .callout p { font-size: 16px; }
+
+  .keypoint {
+    border-left: 3px solid var(--tabfm);
+    background: var(--panel);
+    padding: 18px 20px 4px;
+    margin: 30px 0;
+  }
+  .keypoint .title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--tabfm);
+    margin: 0 0 10px;
+  }
+  .keypoint p { font-size: 16px; }
+
+  /* ---------- console block ---------- */
+  .console {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--tabfm);
+    padding: 16px 18px;
+    margin: 22px 0 26px;
+    overflow-x: auto;
+  }
+  .console pre {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .console .hl { color: var(--ink); font-weight: 700; }
+
+  /* ---------- numbered steps ---------- */
+  ol.steps { list-style: none; padding: 0; margin: 26px 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 0 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--rule-soft);
+    margin: 0;
+  }
+  ol.steps > li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--tabfm);
+    padding-top: 3px;
+  }
+  ol.steps h4 {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  ol.steps p { font-size: 16px; margin: 0 0 8px; color: var(--ink-soft); }
+  ol.steps p:last-child { margin-bottom: 0; }
+  .wait {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  ul { padding-left: 20px; margin: 0 0 16px; }
+  li { margin-bottom: 10px; }
+
+  dl.qa { margin: 24px 0; }
+  dl.qa dt {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  dl.qa dd {
+    margin: 0 0 20px;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--rule);
+    padding-left: 16px;
+  }
+  .no { color: var(--trad); font-weight: 700; }
+
+  .footnote {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.62;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+    margin-top: 56px;
+  }
+  .footnote a { color: inherit; }
+
+  .theme-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 10;
+    background: var(--panel);
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    padding: 7px 13px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--tabfm); outline-offset: 2px; }
+  @media print { .theme-toggle { display: none; } }
+
+  /* ---------- printing and PDF ---------- */
+  @page {
+    size: A4;
+    margin: 16mm 15mm 18mm;
+  }
+
+  @media print {
+    /* Force the light palette on paper, whatever the screen was set to.
+       Same specificity as the dark rules above, and later, so it wins. */
+    :root,
+    :root[data-theme="dark"],
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --paper:     #ffffff;
+      --stripe:    #eef2ea;
+      --panel:     #ffffff;
+      --ink:       #14201a;
+      --ink-soft:  #4a544a;
+      --ink-faint: #6d766c;
+      --rule:      #b9c3b1;
+      --rule-soft: #d8ded1;
+      --tabfm:     #1f5fae;
+      --trad:      #c2501f;
+      --logit:     #12805a;
+      --warn:      #7d4a0e;
+    }
+
+    /* Keep panel and callout backgrounds; browsers drop them otherwise */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      background: #fff;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      padding: 0;
+    }
+    .wrap { max-width: 100%; }
+    header.masthead { max-width: 100%; padding: 0 0 18px; }
+    h1 { font-size: 22pt; }
+    .standfirst { font-size: 12pt; }
+    .lede { font-size: 11.5pt; }
+    .sect { margin-top: 30px; }
+
+    /* Horizontal scrolling does not exist on paper — it clips instead */
+    .scroller { overflow: visible; }
+
+    /* Do not strand a heading at the foot of a page */
+    h1, h2, h3, h4 { break-after: avoid; break-inside: avoid; }
+    p { orphans: 3; widows: 3; }
+
+    /* Keep each self-contained block whole */
+    figure,
+    figcaption,
+    .callout,
+    .keypoint,
+    .board,
+    .console,
+    .analogy > div,
+    ol.steps > li,
+    dl.qa dd { break-inside: avoid; }
+    dl.qa dt { break-after: avoid; }
+
+    /* Long tables may split, but never inside a row, and repeat the header */
+    table { break-inside: auto; }
+    thead { display: table-header-group; }
+    tr, td, th { break-inside: avoid; }
+    caption { break-after: avoid; }
+
+    /* The figure panels run wider than the text column on screen */
+    .greenbar {
+      max-width: 100%;
+      margin: 24px 0;
+      padding: 20px 16px 16px;
+      break-inside: avoid;
+    }
+    figcaption { font-size: 8.5pt; margin-top: 14px; }
+
+    /* The three-method comparison is deliberately wider than the page.
+       Stack it instead of letting it overflow the margin. */
+    .analogy {
+      width: 100%;
+      margin: 26px 0;
+      transform: none;
+      grid-template-columns: 1fr;
+    }
+    .analogy > div { padding: 16px 18px; }
+    .analogy h4 { font-size: 13pt; }
+    .analogy p { font-size: 10pt; }
+
+    /* Table 1 is fourteen columns wide. Let the headings wrap so it fits;
+       the values themselves stay on one line to remain readable. The headings
+       are joined by non-breaking spaces for the screen, so they need
+       overflow-wrap to break at all — without it the table stays 841px wide
+       against a 680px page and is clipped at the right margin. */
+    table.data { font-size: 8pt; }
+    table.data th { white-space: normal; overflow-wrap: anywhere; }
+    table.data th, table.data td { padding: 4px 7px 4px 0; }
+
+    /* These cells are nowrap on screen because horizontal scrolling rescues
+       them. On paper nothing does, and the limits table runs 1068px wide. */
+    td.pick { white-space: normal; }
+
+    table.num { font-size: 9.5pt; }
+    .console pre { font-size: 8.5pt; }
+    .boards { gap: 12px; }
+    .footnote { font-size: 8.5pt; margin-top: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" type="button" id="themeToggle" aria-pressed="false">Dark</button>
+
+<header class="masthead">
+  <div class="runhead">
+    <span>A tutorial</span>
+    <span>Tabular foundation models</span>
+    <span>August 2026</span>
+  </div>
+  <h1>Getting answers from a spreadsheet, without an expert and without much data</h1>
+  <p class="standfirst">
+    Most useful predictions in business are made from ordinary tables — customers
+    in rows, facts about them in columns. Until recently, getting a computer to
+    make those predictions well needed two things many organisations do not have:
+    a specialist, and a great deal of data.
+  </p>
+  <p class="standfirst">
+    This article is about a new approach that needs neither. We will explain what
+    it is, why it is an interesting idea in its own right, and then we will
+    actually run it and show you every number we got.
+  </p>
+</header>
+
+<div class="wrap">
+
+  <div class="sect">
+    <h2>What this article covers</h2>
+    <p class="lede">
+      We are going to take one realistic business question, try three different
+      ways of answering it, and compare them honestly.
+    </p>
+    <p>
+      You do not need any background in computing or statistics. Every term is
+      explained the first time it appears, and the important ones are explained
+      again later, because this is a long article and nobody remembers everything.
+    </p>
+    <p>
+      Two of the three methods we will try are long-established and widely used.
+      The third, called <strong>TabFM</strong>, was released by Google Research in
+      June 2026 and works in a genuinely unusual way. Even if it turned out to
+      perform poorly, it would be worth understanding, because the idea behind it
+      is new and it changes what is possible for people without specialist skills.
+      As it happens, it performed rather well, and we will show you exactly how
+      well.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>The question we are trying to answer</h2>
+    <p>
+      Imagine you work at a bank. You have a spreadsheet of customers: one row per
+      customer, and columns holding facts about each one — their age, which country
+      they live in, how much money is in their account, how long they have been a
+      customer.
+    </p>
+    <p>
+      Now add one more column, which records whether that customer eventually
+      <strong>closed their accounts and left</strong>. In business this is called
+      <strong>churn</strong>, and it is expensive: winning a new customer costs far
+      more than keeping an existing one.
+    </p>
+    <p>
+      For customers who left in the past, that column is filled in. For your
+      current customers it is blank — and you would very much like to know what it
+      will eventually say, because if you could see who was thinking of leaving,
+      you could try to keep them.
+    </p>
+    <p class="lede">
+      So the task is simply this: <strong>fill in a missing column.</strong>
+    </p>
+    <p>
+      That is one of the most common prediction problems in business — far more
+      common than anything involving images, speech or chatbots. Which customers
+      will leave. Which invoices will not be paid. Which machines will fail. All of
+      them are the same shape of problem: a table where one column is known for
+      some rows and missing for others.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>The data we will use, and why we made it ourselves</h2>
+    <p>
+      We are not using a real bank's data. We wrote a small program that invents
+      12,000 customers. That choice is important, so let us explain the reasoning
+      before showing you the result.
+    </p>
+    <p>
+      With real data, nobody knows the true reasons people leave. So when a
+      prediction method scores, say, seven out of ten, you have no way of telling
+      whether that means <em>"this method is mediocre"</em> or <em>"seven out of
+      ten is the best anyone could ever do here"</em>. Those are completely
+      different conclusions and you cannot distinguish them.
+    </p>
+    <p>
+      When we invent the data ourselves, we write the rule that decides who
+      leaves. We therefore know the correct answer for every customer, and — more
+      valuably — we can calculate <strong>the best score any method could possibly
+      achieve</strong>. Every result in this article is measured against that
+      known limit.
+    </p>
+
+    <h3>What each customer looks like</h3>
+    <p>
+      Each invented customer has thirteen facts recorded about them. Here are
+      twelve real rows from our 12,000, exactly as the program produced them.
+    </p>
+  </div>
+</div>
+
+<div class="greenbar">
+  <figure>
+    <div class="scroller">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>age</th><th>years&nbsp;a&nbsp;customer</th><th>balance</th><th>products&nbsp;held</th>
+            <th>has&nbsp;card</th><th>active</th><th>salary</th><th>complaints</th>
+            <th>months&nbsp;idle</th><th>country</th><th>gender</th>
+            <th>plan</th><th>joined&nbsp;via</th><th>left?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>49</td><td>1.7</td><td>56,401</td><td>4</td><td>0</td><td>0</td><td>36,161</td><td>1</td><td>0.3</td><td>Germany</td><td>Male</td><td>Basic</td><td>online</td><td>0</td></tr>
+          <tr><td>30</td><td>3.7</td><td>0</td><td>2</td><td>1</td><td>1</td><td>13,253</td><td>0</td><td>0.9</td><td>France</td><td>Male</td><td>Plus</td><td>online</td><td>0</td></tr>
+          <tr><td>40</td><td>2.0</td><td>119,662</td><td>1</td><td>1</td><td>1</td><td>37,772</td><td>1</td><td>5.6</td><td>France</td><td>Female</td><td>Plus</td><td>partner</td><td>0</td></tr>
+          <tr><td>36</td><td>7.7</td><td>32,044</td><td>1</td><td>0</td><td>0</td><td>81,637</td><td>1</td><td>0.5</td><td>France</td><td>Female</td><td>Basic</td><td>online</td><td class="y">1</td></tr>
+          <tr><td>31</td><td>0.8</td><td>0</td><td>3</td><td>1</td><td>1</td><td>96,554</td><td>0</td><td>0.4</td><td>Spain</td><td>Male</td><td>Plus</td><td>branch</td><td>0</td></tr>
+          <tr><td>40</td><td>5.6</td><td>0</td><td>1</td><td>1</td><td>1</td><td>57,625</td><td>0</td><td>0.1</td><td>Spain</td><td>Male</td><td>Basic</td><td>online</td><td>0</td></tr>
+          <tr><td>53</td><td>2.9</td><td class="miss">missing</td><td>2</td><td>1</td><td>1</td><td>95,018</td><td>0</td><td>0.3</td><td>Germany</td><td>Male</td><td>Plus</td><td>referral</td><td>0</td></tr>
+          <tr><td>56</td><td>3.8</td><td>135,376</td><td>1</td><td>1</td><td>1</td><td>53,345</td><td>1</td><td>0.4</td><td>Germany</td><td>Female</td><td>Plus</td><td>online</td><td class="y">1</td></tr>
+          <tr><td>31</td><td>2.3</td><td>33,157</td><td>3</td><td>0</td><td>1</td><td>61,390</td><td>0</td><td>4.5</td><td>Germany</td><td>Male</td><td>Plus</td><td>online</td><td>0</td></tr>
+          <tr><td>19</td><td>4.5</td><td>0</td><td>2</td><td>1</td><td>1</td><td>48,102</td><td>1</td><td>4.3</td><td>Spain</td><td>Female</td><td>Basic</td><td>partner</td><td>0</td></tr>
+          <tr><td>33</td><td>2.0</td><td>0</td><td>4</td><td>0</td><td>0</td><td>104,548</td><td>0</td><td>2.7</td><td>Spain</td><td>Female</td><td>Basic</td><td>branch</td><td>0</td></tr>
+          <tr><td>39</td><td>5.2</td><td>0</td><td>2</td><td>0</td><td>0</td><td>94,716</td><td>1</td><td>2.1</td><td>France</td><td>Female</td><td>Basic</td><td>online</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figcaption>
+      <span class="fignum">Table 1</span> — Twelve of our 12,000 invented
+      customers. <strong>Products held</strong> counts how many separate bank
+      products the customer has: a current account, a savings account, a credit
+      card, a loan, and so on. <strong>Active</strong> is 1 if they have used their
+      account recently and 0 if they have not touched it.
+      <strong>Months idle</strong> is how long since they last logged in.
+      <strong>Left?</strong> is the answer column: 1 means the customer eventually
+      closed their accounts, 0 means they stayed. Row seven has no balance
+      recorded, which is deliberate and explained below.
+    </figcaption>
+  </figure>
+</div>
+
+<div class="wrap">
+  <div class="sect">
+    <h3>The rule we used to decide who leaves</h3>
+    <p>
+      We could have made this easy — for example, by declaring that everyone in
+      Germany leaves and nobody else does. That would tell us nothing, because any
+      method would find it immediately.
+    </p>
+    <p>
+      Instead we built a rule with the awkward properties that real human behaviour
+      actually has. Each customer starts with a low baseline chance of leaving, and
+      then their circumstances push that chance up or down.
+    </p>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <caption>The invented rule — what raises and lowers a customer's chance of leaving</caption>
+      <thead>
+        <tr><th>What we built in</th><th>Why it makes the problem realistic</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>Risk is lowest around age 44 and rises in both directions</th>
+          <td>The relationship is a curve, not a straight line. Both the young and
+              the old are more likely to leave than the middle-aged. Simple methods
+              that assume "more of this means more of that" cannot express this.</td>
+        </tr>
+        <tr>
+          <th>Holding two products is safest; one is worse, and three or four are
+              worse still</th>
+          <td>Also not a straight line. A customer with a current account and a
+              savings account is settled. A customer with only a current account is
+              barely committed. A customer who has accumulated four products —
+              current account, savings, credit card and loan — is often financially
+              stretched, and leaves most often of all.</td>
+        </tr>
+        <tr>
+          <th>A large balance matters, but only for customers who are inactive</th>
+          <td>This is an <strong>interaction</strong>: two facts that mean little
+              on their own but a great deal together. A wealthy, engaged customer is
+              fine. A wealthy customer who has stopped using the account is
+              preparing to move their money.</td>
+        </tr>
+        <tr>
+          <th>Joining through a partner organisation matters, but only in the first
+              two years</th>
+          <td>A second interaction, and one that fades with time. Customers acquired
+              through a partner deal are less attached at first, but that difference
+              disappears once they settle in.</td>
+        </tr>
+        <tr>
+          <th>Inactive customers, German customers, and customers who complain are
+              more likely to leave</th>
+          <td>Straightforward effects, of the kind any method should find — as long
+              as it has enough examples to notice them.</td>
+        </tr>
+        <tr>
+          <th>Being idle for more than six months raises risk sharply</th>
+          <td>A <strong>threshold</strong>: nothing much happens up to six months,
+              then the risk jumps. Real behaviour is full of thresholds.</td>
+        </tr>
+        <tr>
+          <th>Every additional year as a customer slightly lowers risk, up to eight
+              years</th>
+          <td>A gentle effect that then stops mattering. Loyalty accumulates, but
+              only up to a point.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Then we did two more things, and these are the ones that make the problem
+    honest.
+  </p>
+
+  <h3>We added randomness that nothing can predict</h3>
+  <p>
+    Having worked out each customer's chance of leaving, we did not simply apply
+    it. We first nudged it up or down by a random amount, and then flipped a
+    weighted coin to decide the actual outcome.
+  </p>
+  <p>
+    This matters enormously. It means <strong>two customers with identical
+    spreadsheet entries can have different fates</strong> — one leaves, one stays.
+    And that is true of real life: people leave for reasons a spreadsheet cannot
+    record. A customer moves abroad. A relative recommends another bank. Someone
+    has a bad experience in a branch on a bad day. None of that is in your columns,
+    and no amount of clever computing will recover it.
+  </p>
+  <p>
+    So <strong>perfect prediction is impossible here by construction</strong>, and
+    that is deliberate. A test where perfection is achievable would not resemble
+    any real problem.
+  </p>
+
+  <h3>We removed some of the data</h3>
+  <p>
+    We deleted the balance for about 5% of customers and the plan type for about
+    3%, chosen at random. Real spreadsheets always have gaps — a field was never
+    filled in, a system failed, a record was migrated badly. A fair comparison has
+    to include that inconvenience, because every method has to cope with it
+    somehow.
+  </p>
+
+  <div class="keypoint">
+    <p class="title">Why this matters for everything that follows</p>
+    <p>
+      Because we wrote the rule, we can calculate the best score achievable by
+      <em>any</em> method — a method that somehow knew the exact rule we used, and
+      whose only remaining handicap was the randomness nobody can predict. That
+      number turns out to be <strong>0.792</strong> on the scale we are about to
+      explain. Keep it in mind: it is the target every result in this article is
+      measured against, and nothing can beat it.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>Four words we will use throughout</h2>
+    <p>
+      Before comparing methods, we need a small vocabulary. There are only four
+      terms, and none of them mean anything complicated.
+    </p>
+    <p>
+      A <strong>model</strong> is a formula with adjustable numbers inside it,
+      which takes the facts about a customer and produces a prediction.
+    </p>
+    <p>
+      <strong>Training</strong> is the process of showing that formula a set of
+      customers whose outcomes are already known, and adjusting its internal numbers
+      until its predictions match what actually happened. The customers you show it
+      are called the <strong>training examples</strong>, or sometimes just the
+      training rows.
+    </p>
+    <p>
+      The thirteen columns describing each customer are the
+      <strong>features</strong>. The column we are trying to predict — did they
+      leave — is the <strong>target</strong>.
+    </p>
+    <p>
+      There is one more idea to hold on to, and it is the one that will matter most
+      later: <strong>training permanently changes the model.</strong> Once you have
+      trained it, you could throw away the examples entirely, because everything it
+      learned now lives inside the formula. This sounds obvious. It is exactly what
+      TabFM does not do.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>How we will keep score</h2>
+    <p>
+      We need a fair way to measure how good a prediction is. The obvious way turns
+      out to be badly misleading here, and understanding why is worth a few minutes,
+      because the same trap catches a great many real projects.
+    </p>
+
+    <h3>Why "percentage correct" fails</h3>
+    <p>
+      The obvious measure is the percentage of customers a method gets right. Our
+      test group contains 300 customers, of whom 82 left and 218 stayed. So
+      <strong>72.7% of them stayed</strong>.
+    </p>
+    <p>
+      Now consider a method that does no work at all — it simply predicts
+      <em>"this customer will stay"</em> for everybody, without even looking at the
+      data. It is right 72.7% of the time. It sounds respectable, and it is
+      completely worthless: it never identifies a single customer at risk, which was
+      the entire point of the exercise.
+    </p>
+    <p>
+      You might expect a genuinely excellent method to score far higher and expose
+      the fraud. It does not — and this is the surprising part.
+    </p>
+  </div>
+
+  <div class="boards">
+    <div class="board">
+      <p class="title">The do-nothing method</p>
+      <p class="sub">Predicts "nobody leaves", for every customer.</p>
+      <div class="metric"><span class="k">Percentage correct</span><span class="v">72.7%</span></div>
+      <p class="verdict">Finds nobody. Saves nobody. Useless.</p>
+    </div>
+    <div class="board">
+      <p class="title">A method that knows the exact rule</p>
+      <p class="sub">Knows precisely how we generated the data, and predicts a customer will leave when their true risk is above 50%.</p>
+      <div class="metric"><span class="k">Percentage correct</span><span class="v ok">77.0%</span></div>
+      <p class="verdict">The best knowledge possible, and only <strong>4.3 points</strong> better.
+      This is percentage correct; the same method scores 0.792 on the ranking measure below.</p>
+    </div>
+  </div>
+
+  <p>
+    That gap is the whole problem. <strong>A method with perfect knowledge of the
+    truth scores only about four points above a method that does nothing at
+    all.</strong> Percentage correct simply cannot tell them apart, so it cannot
+    tell you whether your work has any value.
+  </p>
+  <p>
+    There is a second reason it fails, and it is more practical. Of our 300 test
+    customers, the method that knows the true rule flags only <strong>43</strong>
+    as being more likely than not to leave. The highest true risk of any single
+    customer in the group is 0.89 — nobody is certain to go. Because most people
+    stay, being confident about any individual is rare, and a measure built on
+    yes-or-no verdicts throws away nearly everything the prediction knows.
+  </p>
+
+  <h3>What you would actually do with these predictions</h3>
+  <p>
+    Think about how a retention team really works. They have 3,000 current
+    customers and a team that can telephone perhaps 200 of them this month with a
+    retention offer. Nobody is going to call all 3,000, and nobody needs a
+    yes-or-no verdict on each one.
+  </p>
+  <p class="lede">
+    What they need is a <strong>ranking</strong>: put the customers most likely to
+    leave at the top of the list, so that the 200 calls we can afford are spent on
+    the 200 people most worth calling.
+  </p>
+  <p>
+    That is the real task, and it is why the yes-or-no measure is the wrong tool.
+    We do not need to know <em>whether</em> a customer will leave. We need to know
+    <em>who is more likely to leave than whom</em>.
+  </p>
+
+  <h3>The measure we will use instead</h3>
+  <p>
+    So we use a measure of ranking quality. Its usual name is
+    <strong>ROC AUC</strong>, which is an unhelpful abbreviation for a genuinely
+    simple idea. It asks one question:
+  </p>
+  <p class="lede">
+    <em>Take one customer who left and one who stayed, both picked at random. How
+    often does the method give the leaver the higher risk score?</em>
+  </p>
+  <p>
+    If a method scores <strong>0.500</strong>, it gets that right half the time,
+    which is exactly what you would achieve by guessing. That is the score of the
+    do-nothing method, and of a method that assigns risk at random. If it scores
+    <strong>1.000</strong>, it ranks every single leaver above every single stayer.
+  </p>
+  <p>
+    The two useful properties are these. It is unaffected by the fact that most
+    customers stay, so it cannot be fooled the way percentage correct was. And it
+    measures precisely the thing the retention team cares about: whether the right
+    people are near the top of the list.
+  </p>
+
+  <div class="keypoint">
+    <p class="title">Two rulers, not two models</p>
+    <p>
+      One thing is worth settling before any score appears, because it is the single
+      easiest place to get lost. The two methods above have now been measured
+      <em>twice</em>, and the two numbers you get are not on the same scale.
+    </p>
+    <div class="scroller">
+      <table class="rulers">
+        <thead>
+          <tr>
+            <th>The measure, and the question it asks</th>
+            <th>Says "nobody leaves"</th>
+            <th>Knows the exact rule</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Percentage correct</strong><span class="asks">Of the 300 customers, how many does it label correctly?</span></td>
+            <td>72.7%</td>
+            <td>77.0%</td>
+          </tr>
+          <tr>
+            <td><strong>ROC AUC</strong><span class="asks">Given one leaver and one stayer, how often does it put the leaver higher?</span></td>
+            <td>0.500</td>
+            <td><strong>0.792</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The second row is a proportion as well:
+      <strong>0.792 means the method gets that pair the right way round 79.2% of the
+      time.</strong> But it is a proportion of a different question — of pairs put in
+      the right order, not of customers labelled correctly. So 77.0% and 0.792 are not
+      rivals, and neither one limits the other. They describe the same method, judged
+      on two different jobs.
+    </p>
+    <p>
+      Reading down the two rows is the argument of this whole section. On the first
+      ruler, the useless method and the best method possible are 4.3 points apart. On
+      the second, they are at opposite ends of the scale.
+    </p>
+  </div>
+
+  <div class="keypoint">
+    <p class="title">The three numbers to remember</p>
+    <p>
+      <strong>0.500</strong> means no ability at all — the same as guessing.<br>
+      <strong>0.792</strong> is the best score achievable on this data by anything,
+      because of the randomness we built in. It means putting a leaver above a stayer
+      79.2% of the time.<br>
+      <strong>1.000</strong> is perfect ranking, and is impossible here.
+    </p>
+    <p>
+      Every result from here on is one of these numbers. When you see 0.65, read it
+      as "about halfway between useless and the best anyone could do".
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>The three methods we will compare</h2>
+    <p>
+      Two of these have been in everyday use for years. The third is the new one.
+      All three will be given exactly the same customers to learn from, and tested
+      on exactly the same 300 customers.
+    </p>
+  </div>
+</div>
+
+<div class="analogy">
+  <div class="trad">
+    <p class="who">Established &middot; the accurate one</p>
+    <h4>Gradient boosting</h4>
+    <p>
+      Built out of <strong>decision trees</strong>. A decision tree is a flowchart
+      of yes-or-no questions: <em>"Has this customer used their account recently?
+      If not, do they hold more than two bank products? If so, predict they will
+      leave."</em>
+    </p>
+    <p>
+      Gradient boosting builds hundreds of such flowcharts one after another, and
+      each new one concentrates on the customers the previous ones got wrong. It is
+      the standard choice for spreadsheet data and, given enough examples, it is
+      very hard to beat.
+    </p>
+  </div>
+  <div class="lin">
+    <p class="who">Established &middot; the simple one</p>
+    <h4>Logistic regression</h4>
+    <p>
+      Gives every column a weight — a number saying how strongly that fact pushes a
+      customer toward leaving — then adds the weights up and converts the total into
+      a risk score.
+    </p>
+    <p>
+      Because it can only add things up, it struggles with our rule. It cannot
+      express "two bank products is safer than either one product or four", because
+      that is not a straight line. It does well early on and then stops improving.
+    </p>
+  </div>
+  <div class="tab">
+    <p class="who">New &middot; released June 2026</p>
+    <h4>TabFM</h4>
+    <p>
+      <strong>Never trains on your data at all.</strong> Its internal numbers are
+      fixed and never change — they are identical before and after it sees your
+      spreadsheet.
+    </p>
+    <p>
+      Instead, your examples are handed to it as <em>reading material</em> at the
+      moment it makes each prediction. This is called
+      <strong>in-context learning</strong>, and the next sections explain how it
+      can possibly work.
+    </p>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="sect">
+    <h2>The problem TabFM is trying to solve</h2>
+    <p class="lede">
+      Established methods need a great deal of data before they produce anything of
+      any value at all. Not before they become excellent — before they become
+      <em>useful</em>.
+    </p>
+    <p>
+      This is the practical barrier that stops most organisations from ever
+      starting. You have a question worth answering, and perhaps forty examples you
+      have labelled by hand. Forty is not enough, and everybody in the field will
+      tell you so. To find out whether the idea has any merit, you must first spend
+      months gathering thousands more examples — without knowing whether the answer
+      at the end will be worth anything.
+    </p>
+    <p>
+      You will see this concretely in our results. With 25 training customers,
+      gradient boosting scores exactly <strong>0.500</strong> — the guessing score.
+      Not a poor result: <em>no</em> result. It examines 25 customers, finds it
+      cannot justify a single split of the data, gives up, and predicts the same
+      thing for everybody.
+    </p>
+    <p>
+      TabFM's claim is that it can give you a genuinely useful ranking from a few
+      dozen examples. If that is true, it changes who can do this work and when.
+      You could test an idea on a Friday afternoon with the data you already have,
+      and only invest in gathering more if the early signs are promising.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>How a model can learn from ten examples</h2>
+    <p>
+      This is the part worth slowing down for, because the natural explanation is
+      wrong, and the true one is more interesting.
+    </p>
+    <p>
+      The natural guess is that TabFM has seen a spreadsheet like ours before —
+      that somewhere in its preparation there was a bank customer table, with a
+      country column containing France, Germany and Spain, and that it is
+      recognising something familiar.
+    </p>
+    <p>
+      <strong>Every part of that guess is wrong.</strong>
+    </p>
+
+    <dl class="qa">
+      <dt>Has it seen this table before?</dt>
+      <dd><span class="no">No.</span> These 12,000 customers were invented by our
+      own program on the day of the test. They have never existed anywhere else,
+      and no copy of them was ever published.</dd>
+
+      <dt>Did it learn from other banks' customer tables?</dt>
+      <dd><span class="no">No — and this is the surprising part.</span> Google
+      states that TabFM was prepared <strong>entirely on invented data</strong>.
+      Not mostly: entirely. It has never read a real spreadsheet of any kind, from
+      any industry, at any point.</dd>
+
+      <dt>Does it know what France or Germany are?</dt>
+      <dd><span class="no">No.</span> It has no knowledge of countries, of banking,
+      or of customers. Nobody has ever told it what a bank is.</dd>
+
+      <dt>Does it recognise our column headings?</dt>
+      <dd><span class="no">No.</span> Nothing it was prepared on had a column
+      called "months idle" or "products held", because nothing it was prepared on
+      described anything real. This is the one answer of the four that we could
+      check for ourselves rather than take on trust, so we did. The test is the
+      next thing on this page.</dd>
+    </dl>
+
+    <h3>How we know it ignores the column headings</h3>
+    <p>
+      Three of those four answers rest on what Google says about how TabFM was
+      prepared. The fourth — that it does not recognise our column headings — was
+      something we could check for ourselves rather than take on trust, so we
+      checked it.
+    </p>
+    <p>
+      The test is easy to describe. We gave TabFM our 300 test customers and wrote
+      down the risk score it produced for each one: a number between 0 and 1 saying
+      how likely that customer is to close their accounts. Then we handed it the
+      very same 300 customers a second time, with the same values sitting in the
+      same places, and changed nothing at all except the words written at the top
+      of each column. If those words carry any meaning for the model, the scores
+      have to move.
+    </p>
+    <p>
+      We tried three ways of changing them, each one harsher than the one before.
+    </p>
+    <ul>
+      <li>
+        <strong>Headings stripped of meaning.</strong> Every heading was replaced
+        by a label that says nothing: <em>age</em> became <em>c1</em>,
+        <em>years a customer</em> became <em>c2</em>, and so on to <em>c13</em>.
+      </li>
+      <li>
+        <strong>Headings that are wrong.</strong> Rather than remove the meaning we
+        made it false. Every name was shifted along one position, so the column holding
+        each customer's <em>balance</em> was now labelled <em>years a
+        customer</em>, the column holding their <em>country</em> was labelled
+        <em>months idle</em>, and the column holding their <em>age</em> was
+        labelled <em>joined via</em>. Every heading in the table was now wrong
+        about the values underneath it.
+      </li>
+      <li>
+        <strong>Wrong headings, and disguised words as well.</strong> On top of the
+        headings we also replaced the words inside the table itself:
+        <em>France</em> became <em>a1</em>, <em>Germany</em> became <em>a2</em>,
+        <em>Basic</em> became <em>d1</em>. We put the replacements in the same
+        alphabetical order as the words they stood in for, so the only thing taken
+        away was what the word means.
+      </li>
+    </ul>
+    <p class="lede">
+      <strong>The scores did not move at all.</strong> Not "moved slightly", and
+      not "moved by less than our margin of error". Under all three disguises,
+      every one of the 300 customers came back with exactly the same score as
+      before — identical to the last digit the computer is able to store.
+    </p>
+
+    <h3>Why we did not simply believe that</h3>
+    <p>
+      A result of "nothing changed whatsoever" is also exactly what you would see
+      if the test itself were broken. Had we made a mistake and quietly handed the
+      model the original, properly labelled table three times over, the outcome
+      would have looked precisely like this. So before believing the result, we
+      needed one more version of the test — one we already knew ought to come out
+      differently.
+    </p>
+    <p>
+      In that version we left every heading alone and instead destroyed the
+      contents of a single column. We took <em>products held</em> — how many
+      separate bank products the customer has, a current account, a savings
+      account, a credit card, a loan — which is one of the strongest signals of who
+      leaves, and set it to the same value for every customer, removing all the
+      information it carried.
+    </p>
+    <p>
+      That version <em>did</em> change the answer, and for very nearly everybody.
+      <strong>297 of the 300 customers came back with a different score</strong>,
+      where disguising the headings had changed none of them. The largest single
+      change was 0.21, meaning TabFM's view of how likely that person was to leave
+      shifted by 21 percentage points. So the model was certainly reading the table
+      we handed it. It simply was not reading the words at the top of the columns.
+    </p>
+    <p>
+      We then repeated the comparison with different amounts of training data — 10
+      training customers, 100, and 500 — and with a second random selection of
+      which customers to train on. Every disguised run matched the properly
+      labelled version exactly. We also ran the original table twice unchanged, to
+      confirm that TabFM returns the same answer when nothing is altered. It does,
+      which is what makes a difference of zero meaningful: it is genuinely no
+      difference, rather than a difference too small for us to notice.
+    </p>
+
+    <div class="keypoint">
+      <p class="title">What this means when you come to use it</p>
+      <p>
+        You cannot help TabFM by giving your columns clear, descriptive names, and
+        you cannot mislead it by giving them wrong ones. It will not notice either
+        way. Everything it concludes it concludes from the values themselves and
+        the relationships between them — which is exactly what you would expect of
+        a model whose entire preparation consisted of invented tables that
+        described nothing real.
+      </p>
+    </div>
+
+    <h3>What it was actually shown</h3>
+    <p>
+      Google's team generated <strong>hundreds of millions of invented
+      tables</strong>. Each one was produced by a recipe of the following kind:
+      invent a few hidden causes; connect them to each other with randomly chosen
+      mathematical relationships; add some randomness; then write down the result as
+      a table of numbers with the correct answers attached.
+    </p>
+    <p>
+      The formal name for such a recipe is a <strong>structural causal model</strong>,
+      but the plain description above is all you need. Run that recipe hundreds of
+      millions of times with different random wiring each time, and you produce an
+      enormous library of tiny invented worlds — each one a table in which
+      something genuinely causes something else, and each one supplied with the
+      right answers.
+    </p>
+    <p>
+      Google's stated reason for working this way is practical: genuinely varied
+      real tables are far too scarce to prepare a model on at that scale, so
+      inventing them was, in their words, the only workable option.
+    </p>
+
+    <h3>Why that produces the ability to learn from ten rows</h3>
+    <p>
+      Here is the key question. What is the <em>only</em> thing worth learning
+      across millions of unrelated invented worlds?
+    </p>
+    <p>
+      Not the contents. The contents are different every time and describe nothing
+      real. The only thing that carries over from one invented world to the next is
+      <strong>the skill of working out the structure of a table from a small number
+      of rows</strong>.
+    </p>
+    <p class="lede">
+      So what was learned is not knowledge about banks or customers.
+      <strong>What was learned is the act of learning itself.</strong>
+    </p>
+    <p>
+      Gradient boosting also has a procedure for finding patterns, but it is a fixed
+      one, written down by statisticians decades ago. TabFM's procedure was
+      <em>discovered</em>, by being made to solve millions of small table-shaped
+      puzzles until it became good at small table-shaped puzzles in general.
+    </p>
+    <p>
+      Now consider what happens when either method is given ten customers. The real
+      difficulty with very little data is not that the answer is hidden — it is that
+      <strong>too many different explanations fit the evidence equally well</strong>.
+    </p>
+    <p>
+      Gradient boosting has to commit to one. It must choose a flowchart it can
+      statistically justify, and with ten customers it can justify nothing at all,
+      so it declines to guess. TabFM does not have to commit. Having worked through
+      millions of invented worlds, it carries expectations about how tables usually
+      behave: that columns often interact, that effects often have thresholds, that
+      a rare category can carry a strong signal, that some columns are pure noise,
+      that values go missing. Faced with ten rows, it weighs the explanations that
+      fit, leaning toward the kinds of structure that were common across all those
+      worlds.
+    </p>
+    <p>
+      <strong>That accumulated expectation is what stands in for the data you do
+      not have.</strong> It is the entire advantage — and it also explains why the
+      advantage shrinks as examples accumulate. Once you have thousands of rows, the
+      evidence speaks clearly for itself, and prior expectations stop being needed.
+    </p>
+
+    <div class="callout">
+      <p class="title">The same mechanism is also the risk</p>
+      <p>
+        TabFM leans toward the kinds of patterns its invented worlds tended to
+        contain. If your real problem is shaped quite unlike anything that recipe
+        produces, that leaning is not help — it is a bias, and it can be confidently
+        wrong. An expectation is worth exactly as much as it is appropriate. This is
+        not a hypothetical concern, and it is the strongest reason to check a
+        TabFM result against a traditional method once you have enough data to
+        train one.
+      </p>
+    </div>
+  </div>
+
+  <div class="sect">
+    <h2>What TabFM actually is</h2>
+    <p>
+      We have described what TabFM learned. It is worth being equally clear about
+      what it <em>is</em>, because that determines what it can and cannot do.
+    </p>
+    <p>
+      TabFM is a <strong>neural network</strong>: a large mathematical structure
+      whose behaviour is controlled by a very large collection of numbers, called
+      its <strong>weights</strong>. More specifically it is a
+      <strong>transformer</strong>, which is the same broad design used by
+      chatbots and language models. When you download TabFM you are downloading
+      6.56 gigabytes of these weights.
+    </p>
+    <p>
+      The mechanism that makes a transformer work is called
+      <strong>attention</strong>. For each piece of the input, the network works out
+      how much every other piece matters to it. In a chatbot, that is words
+      attending to other words. In TabFM it operates across the table in both
+      directions: rows attending to other rows, and columns attending to other
+      columns. That is how it can notice both that one customer resembles another,
+      and that one column only matters in combination with a second.
+    </p>
+
+    <h3>Two learning procedures, arrived at from opposite directions</h3>
+    <p>
+      There are two different things called algorithms in this story, and separating
+      them makes everything clearer.
+    </p>
+    <p>
+      Gradient boosting and logistic regression <strong>are</strong> procedures
+      written by people. They were designed, published, and printed in textbooks.
+      You could read the steps, hand them to a programmer, and have them
+      reimplemented. When you run one on your data, it produces a model.
+    </p>
+    <p>
+      TabFM works the other way around. What you download is not a procedure you can
+      read; it is a collection of numbers. But when those numbers are run, what they
+      <em>carry out</em> is a learning procedure — one that nobody designed, that has
+      never been written down in any language, and that was instead discovered
+      automatically while working through those millions of practice tables.
+    </p>
+    <p>
+      This is why TabFM is fairly described as a <strong>black box</strong>, and in
+      a stronger sense than that phrase usually carries. It is worth separating the
+      degrees, because "black box" gets used loosely:
+    </p>
+    <ul>
+      <li>
+        <strong>Logistic regression is genuinely transparent.</strong> You can read
+        the weight attached to each column and say out loud: "being inactive adds
+        this much risk".
+      </li>
+      <li>
+        <strong>Gradient boosting is already difficult to interpret</strong>, because
+        any single prediction is the combined verdict of hundreds of flowcharts.
+      </li>
+      <li>
+        <strong>TabFM is opaque at both levels.</strong> You cannot inspect its
+        learning procedure, and you cannot easily explain why it judged one
+        particular customer to be at risk.
+      </li>
+    </ul>
+    <p>
+      One further consequence of being a neural network: a prediction is produced by
+      <strong>a single pass through the network</strong>. There is no training loop,
+      no repeated adjustment, nothing to wait for. That is why it needs no tuning,
+      and also why it cannot carry anything over from one prediction to the next.
+    </p>
+
+    <h3>Two words you will meet everywhere else</h3>
+    <p>
+      Everything so far has been described in plain language, deliberately. But if
+      you go on to read Google's own announcement, or almost anything else written
+      about TabFM, you will meet two pieces of vocabulary in the first line. Both
+      name ideas you have already understood, so it is worth attaching them to the
+      right thing now rather than meeting them cold.
+    </p>
+    <p>
+      A <strong>foundation model</strong> is one large model that is prepared once,
+      at considerable expense, and then used on many different problems without being
+      rebuilt for any of them. That is the opposite of the usual arrangement, in
+      which a fresh model is trained for every new question somebody wants answered.
+      TabFM was prepared once by Google, and is then pointed at your table, and at
+      everybody else's table, unchanged. The same word is used for the large models
+      behind chatbots, for the same reason.
+    </p>
+    <p>
+      <strong>Zero-shot</strong> means the model gives an answer on a problem it was
+      never specifically prepared for, in one go, with nothing about it adjusted
+      first. "Shot" here means an attempt at adjusting the model to your particular
+      problem, and zero of them are taken.
+    </p>
+    <p>
+      Google's announcement is titled <em>"Introducing TabFM, a zero-shot foundation
+      model for tabular data"</em> — where <strong>tabular</strong> simply means
+      arranged in a table, rows and columns, which is the only kind of data this
+      model handles. Every part of that title now means something concrete: prepared
+      once for everybody, used on your spreadsheet with no adjustment at all.
+    </p>
+
+    <h3>A reasonable question: if we download the weights, is it open source?</h3>
+    <p>
+      Not quite, and the distinction is worth getting right because it affects
+      whether you can use it at work.
+    </p>
+    <p>
+      You genuinely do receive the weights. They are published openly, they sit on
+      your disk, and you can inspect them. The usual term for this is
+      <strong>open weights</strong>.
+    </p>
+    <p>
+      <strong>Open source</strong> normally means something more: that you may use
+      the thing freely for any purpose, including commercially. For TabFM these two
+      come apart. The <em>program code</em> that runs the model is released under a
+      standard open source licence. The <em>weights</em> — the valuable part, the
+      6.56 gigabytes — are licensed for non-commercial use only. You may read them,
+      run them, study them and publish research about them. You may not build a
+      product you sell on top of them.
+    </p>
+    <p>
+      There is also a practical sense in which having the weights is not the same as
+      having the answer. They are several billion numbers, and no individual number
+      means anything a person could state. Being able to see them does not make the
+      black box transparent.
+    </p>
+
+    <h3>Two kinds of question it can answer</h3>
+    <p>
+      Every question in this article has been the same shape: sort each customer
+      into one of two named groups, <em>left</em> or <em>stayed</em>. Putting each
+      row into one of a fixed set of named groups is called
+      <strong>classification</strong>, and the groups themselves are called
+      <strong>classes</strong>, or equivalently categories. Two classes is the
+      simplest case, and it is the one we have been working with all along. Sorting
+      support tickets into <em>billing</em>, <em>technical</em> and
+      <em>account</em> would be three.
+    </p>
+    <p>
+      There is a second kind of question entirely, and TabFM answers it as well,
+      although we did not test that side of it. Instead of a named group, what you
+      want may be a <strong>quantity</strong>: how much this customer will spend
+      next year, what this house will sell for, how many days until this machine
+      needs servicing. Predicting a number rather than a group is called
+      <strong>regression</strong>. Google states that TabFM handles both, in the
+      same way and with the same single pass through the network.
+    </p>
+    <p>
+      That distinction matters more than it may sound, because the best known of
+      TabFM's limits applies to only one of the two kinds of question.
+    </p>
+
+    <h3>What sets TabFM's limits</h3>
+    <p>
+      TabFM comes with three published limits. They are not the same kind of
+      constraint, which matters in practice: one of them will never change, and the
+      other two move depending on your circumstances.
+    </p>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <caption>Three limits, three different causes</caption>
+      <thead>
+        <tr><th>Limit</th><th>Value</th><th>What causes it</th><th>Can it change?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>Number of categories it can sort rows into</th>
+          <td>10</td>
+          <td>The final stage of a neural network has a fixed number of output
+              slots, decided when the network is designed and permanently fixed once
+              its weights are prepared. This one was built with ten. Note that this
+              applies only when the question asks for a named group. When TabFM is
+              predicting a quantity instead, nothing corresponds to this limit at
+              all.</td>
+          <td class="pick g">No. Predicting an eleventh category would require a
+              differently built network, prepared again from scratch.</td>
+        </tr>
+        <tr>
+          <th>Number of columns</th>
+          <td>around 500</td>
+          <td>An adjustable setting, whose default reflects the range of table widths
+              covered during preparation. Beyond that range you are asking about a
+              shape of problem it rarely practised on.</td>
+          <td class="pick t">Yes, but gently. It is a guideline, not a wall.</td>
+        </tr>
+        <tr>
+          <th>Number of training examples</th>
+          <td>no fixed limit</td>
+          <td>Your examples are held in front of the model while it works, rather
+              than absorbed into it. More examples therefore cost more memory and
+              more time for every prediction it makes.</td>
+          <td class="pick t">Yes. This is a limit of budget and patience, not of
+              design.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sect">
+    <h2>What we expected before we ran anything</h2>
+    <p>
+      Before running a single test, we wrote down what we thought TabFM would score
+      at each training size, and committed to reporting the outcome against those
+      guesses whether or not they held up. We are showing them for two reasons.
+    </p>
+    <p>
+      The first is honesty: it is easy to explain a result after the fact, and much
+      harder to predict it beforehand. The second is more useful to you as a reader.
+      Seeing a prediction sit beside a measurement makes it clear that
+      <strong>these curves are specific results from one experiment, not laws of
+      nature</strong>. Run the same comparison on different data, or with different
+      settings, and the lines will fall differently.
+    </p>
+  </div>
+</div>
+
+<div class="greenbar">
+  <figure>
+    <div class="scroller">
+      <svg viewBox="0 0 880 400" role="img"
+           aria-label="Chart showing the range of scores predicted for TabFM before the experiment, from 0.63 to 0.69 at 25 training customers rising to 0.74 to 0.78 at 2000, drawn as a shaded band.">
+        <defs>
+          <style>
+            .grid { stroke: var(--rule-soft); stroke-width: 1; }
+            .ax   { stroke: var(--rule); stroke-width: 1; }
+            .lbl  { font-family: var(--mono); font-size: 11px; fill: var(--ink-faint); }
+            .note { font-family: var(--mono); font-size: 11px; fill: var(--ink-soft); }
+          </style>
+        </defs>
+
+        <line class="grid" x1="80" y1="302.7" x2="850" y2="302.7"/>
+        <line class="grid" x1="80" y1="234.5" x2="850" y2="234.5"/>
+        <line class="grid" x1="80" y1="166.4" x2="850" y2="166.4"/>
+        <line class="grid" x1="80" y1="98.2"  x2="850" y2="98.2"/>
+
+        <text class="lbl" x="70" y="306" text-anchor="end">0.60</text>
+        <text class="lbl" x="70" y="238" text-anchor="end">0.65</text>
+        <text class="lbl" x="70" y="170" text-anchor="end">0.70</text>
+        <text class="lbl" x="70" y="102" text-anchor="end">0.75</text>
+        <text class="lbl" x="70" y="34"  text-anchor="end">0.80</text>
+
+        <!-- the predicted band -->
+        <polygon fill="var(--tabfm)" opacity=".18"
+          points="80,180 201.8,139.1 323.6,111.8 484.6,98.2 606.4,84.5 728.2,70.9 850,57.3
+                  850,111.8 728.2,111.8 606.4,139.1 484.6,152.7 323.6,193.6 201.8,220.9 80,261.8"/>
+        <polyline fill="none" stroke="var(--tabfm)" stroke-width="1.6" opacity=".65"
+          points="80,180 201.8,139.1 323.6,111.8 484.6,98.2 606.4,84.5 728.2,70.9 850,57.3"/>
+        <polyline fill="none" stroke="var(--tabfm)" stroke-width="1.6" opacity=".65"
+          points="80,261.8 201.8,220.9 323.6,193.6 484.6,152.7 606.4,139.1 728.2,111.8 850,111.8"/>
+
+        <line class="ax" x1="80" y1="30" x2="80" y2="360"/>
+        <line class="ax" x1="80" y1="360" x2="850" y2="360"/>
+
+        <text class="lbl" x="80"  y="379" text-anchor="middle">25</text>
+        <text class="lbl" x="202" y="379" text-anchor="middle">50</text>
+        <text class="lbl" x="324" y="379" text-anchor="middle">100</text>
+        <text class="lbl" x="485" y="379" text-anchor="middle">250</text>
+        <text class="lbl" x="606" y="379" text-anchor="middle">500</text>
+        <text class="lbl" x="728" y="379" text-anchor="middle">1,000</text>
+        <text class="lbl" x="846" y="379" text-anchor="middle">2,000</text>
+
+        <text class="note" x="300" y="290">the range we predicted TabFM would score,</text>
+        <text class="note" x="300" y="304">written down before any test was run</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="fignum">Figure 1</span> — Our predictions, recorded in advance.
+      The shaded band is the range we expected TabFM to land in at each training
+      size. Horizontal axis is the number of training customers, spaced so that each
+      step is roughly a doubling. We were confident about the general shape — a
+      strong start that flattens out — and much less confident about the exact
+      values, which we expected to be accurate to within about 0.03.
+    </figcaption>
+  </figure>
+</div>
+
+<div class="wrap">
+  <div class="sect">
+    <h2>What we measured</h2>
+    <p>
+      Now the actual results. All three methods were given identical training
+      customers and tested on the identical 300 customers. Every point below is the
+      average of three separate attempts using three different random selections of
+      training customers, so that a single lucky or unlucky selection cannot
+      mislead us.
+    </p>
+  </div>
+</div>
+
+<div class="greenbar">
+  <figure>
+    <div class="scroller">
+      <svg viewBox="0 0 880 470" role="img"
+           aria-label="Line chart of ranking quality against number of training customers. TabFM starts at 0.614 with ten customers, reaches 0.781 at five hundred, and is measured at 0.772 at one thousand. Gradient boosting sits at 0.500 until fifty customers, then climbs to 0.773 by eight thousand. Logistic regression rises from 0.587 to about 0.724 and levels off.">
+        <defs>
+          <style>
+            .ax   { stroke: var(--rule); stroke-width: 1; }
+            .grid { stroke: var(--rule-soft); stroke-width: 1; }
+            .lbl  { font-family: var(--mono); font-size: 11px; fill: var(--ink-faint); }
+            .lblb { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+            .note { font-family: var(--mono); font-size: 11px; fill: var(--ink-soft); }
+            .ln   { fill: none; stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+          </style>
+        </defs>
+
+        <line class="grid" x1="70" y1="367.5" x2="850" y2="367.5"/>
+        <line class="grid" x1="70" y1="311.25" x2="850" y2="311.25"/>
+        <line class="grid" x1="70" y1="255" x2="850" y2="255"/>
+        <line class="grid" x1="70" y1="198.75" x2="850" y2="198.75"/>
+        <line class="grid" x1="70" y1="142.5" x2="850" y2="142.5"/>
+        <line class="grid" x1="70" y1="86.25" x2="850" y2="86.25"/>
+
+        <text class="lbl" x="60" y="371" text-anchor="end">0.50</text>
+        <text class="lbl" x="60" y="315" text-anchor="end">0.55</text>
+        <text class="lbl" x="60" y="259" text-anchor="end">0.60</text>
+        <text class="lbl" x="60" y="203" text-anchor="end">0.65</text>
+        <text class="lbl" x="60" y="146" text-anchor="end">0.70</text>
+        <text class="lbl" x="60" y="90"  text-anchor="end">0.75</text>
+        <text class="lbl" x="60" y="34"  text-anchor="end">0.80</text>
+
+        <line x1="70" y1="39" x2="850" y2="39" stroke="var(--ink-soft)"
+              stroke-width="1.3" stroke-dasharray="6 5"/>
+        <text class="note" x="850" y="31" text-anchor="end">0.792 — the best score anything could achieve</text>
+
+        <line x1="70" y1="367.5" x2="850" y2="367.5" stroke="var(--ink-faint)" stroke-width="1.4"/>
+        <text class="note" x="74" y="383">0.500 — no better than guessing</text>
+
+        <line class="ax" x1="70" y1="30" x2="70" y2="400"/>
+        <line class="ax" x1="70" y1="400" x2="850" y2="400"/>
+
+        <text class="lbl" x="70"  y="419" text-anchor="middle">10</text>
+        <text class="lbl" x="177" y="419" text-anchor="middle">25</text>
+        <text class="lbl" x="258" y="419" text-anchor="middle">50</text>
+        <text class="lbl" x="339" y="419" text-anchor="middle">100</text>
+        <text class="lbl" x="420" y="419" text-anchor="middle">200</text>
+        <text class="lbl" x="527" y="419" text-anchor="middle">500</text>
+        <text class="lbl" x="607" y="419" text-anchor="middle">1,000</text>
+        <text class="lbl" x="688" y="419" text-anchor="middle">2,000</text>
+        <text class="lbl" x="769" y="419" text-anchor="middle">4,000</text>
+        <text class="lbl" x="846" y="419" text-anchor="middle">8,000</text>
+        <text class="lbl" x="460" y="443" text-anchor="middle">training customers given to the method</text>
+
+        <polyline class="ln" stroke="var(--logit)"
+          points="70,269.6 177,262.9 258,249.4 339,171.7 420,181.9 527,142.5 607,124.5 688,130.1 769,120 850,115.5"/>
+        <polyline class="ln" stroke="var(--trad)"
+          points="70,367.5 177,367.5 258,238.1 339,196.5 420,193.1 527,120 607,109.9 688,94.1 769,64.9 850,60.4"/>
+        <polyline class="ln" stroke="var(--tabfm)" stroke-width="3.4"
+          points="70,239.3 177,231.4 258,222.4 339,135.7 420,118.9 527,51.4 607,61.5"/>
+
+        <circle cx="70"  cy="239.3" r="4.6" fill="var(--tabfm)"/>
+        <circle cx="177" cy="231.4" r="4.6" fill="var(--tabfm)"/>
+        <circle cx="258" cy="222.4" r="4.6" fill="var(--tabfm)"/>
+        <circle cx="339" cy="135.7" r="4.6" fill="var(--tabfm)"/>
+        <circle cx="420" cy="118.9" r="4.6" fill="var(--tabfm)"/>
+        <circle cx="527" cy="51.4"  r="5.8" fill="var(--tabfm)"/>
+        <circle cx="607" cy="61.5"  r="4.6" fill="var(--tabfm)"/>
+        <circle cx="70"  cy="367.5" r="4.2" fill="var(--trad)"/>
+        <circle cx="177" cy="367.5" r="4.2" fill="var(--trad)"/>
+        <circle cx="850" cy="60.4"  r="4.2" fill="var(--trad)"/>
+        <circle cx="850" cy="115.5" r="4.2" fill="var(--logit)"/>
+
+        <text class="lblb" x="322" y="101" fill="var(--tabfm)">TabFM</text>
+        <text class="lblb" x="846" y="88" text-anchor="end" fill="var(--trad)">Gradient boosting</text>
+        <text class="lblb" x="846" y="152" text-anchor="end" fill="var(--logit)">Logistic regression</text>
+
+        <text class="note" x="78" y="300" fill="var(--trad)">gradient boosting cannot</text>
+        <text class="note" x="78" y="314" fill="var(--trad)">justify a single split</text>
+        <text class="note" x="78" y="328" fill="var(--trad)">of the data here</text>
+
+        <line x1="560" y1="200" x2="605" y2="76" stroke="var(--tabfm)"
+              stroke-width="1.1" opacity=".5"/>
+        <text class="note" x="470" y="216" fill="var(--tabfm)">we stopped measuring TabFM here,</text>
+        <text class="note" x="470" y="230" fill="var(--tabfm)">because each result took 3.5 minutes</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="fignum">Figure 2</span> — Every point measured, none predicted.
+      Vertical axis is ranking quality: 0.500 is guessing, 0.792 is the best
+      achievable. Each point averages three attempts with different randomly chosen
+      training customers. TabFM's line ends at 1,000 customers because that is where
+      we stopped measuring, not because its performance ended there.
+    </figcaption>
+  </figure>
+</div>
+
+<div class="wrap">
+  <div class="scroller">
+    <table class="num">
+      <caption>The same results as numbers — 0.500 is guessing, 0.792 is the maximum</caption>
+      <thead>
+        <tr>
+          <th>Training customers</th>
+          <th>TabFM</th>
+          <th>Gradient boosting</th>
+          <th>Logistic regression</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="n">10</td><td class="c-tab">0.614</td><td>0.500</td><td>0.587</td></tr>
+        <tr><td class="n">25</td><td class="c-tab">0.621</td><td>0.500</td><td>0.593</td></tr>
+        <tr><td class="n">50</td><td class="c-tab">0.629</td><td>0.615</td><td>0.605</td></tr>
+        <tr><td class="n">100</td><td class="c-tab">0.706</td><td>0.652</td><td>0.674</td></tr>
+        <tr><td class="n">200</td><td class="c-tab">0.721</td><td>0.655</td><td>0.665</td></tr>
+        <tr><td class="n">500</td><td class="c-tab">0.781</td><td>0.720</td><td>0.700</td></tr>
+        <tr><td class="n">1,000</td><td class="c-tab">0.772</td><td>0.729</td><td>0.716</td></tr>
+        <tr><td class="n">2,000</td><td class="dash">not measured</td><td>0.743</td><td>0.711</td></tr>
+        <tr><td class="n">4,000</td><td class="dash">not measured</td><td>0.769</td><td>0.720</td></tr>
+        <tr><td class="n">8,000</td><td class="dash">not measured</td><td class="c-gb">0.773</td><td>0.724</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sect">
+    <h2>How certain are these numbers?</h2>
+    <p>
+      Before drawing conclusions we should establish how much confidence any
+      individual number deserves. This matters: without it, you cannot tell a real
+      difference from an accident of which customers happened to be in the test.
+    </p>
+    <p>
+      Our test group contains 300 customers, of whom 82 left and 218 stayed. Had we
+      chosen a different 300 customers, every score would have come out somewhat
+      differently, purely by chance. Statisticians can calculate how much — for this
+      kind of ranking score there is a standard formula, published by Hanley and
+      McNeil in 1982, which takes the score, the number of leavers and the number of
+      stayers, and returns the expected size of that wobble.
+    </p>
+    <p>
+      For our test group, a score around 0.78 carries an expected wobble of about
+      <strong>0.033</strong>. In everyday terms: <strong>if we repeated this whole
+      exercise with a different 300 customers, a score of 0.78 might reasonably come
+      out anywhere between about 0.72 and 0.84.</strong>
+    </p>
+    <p>
+      That is a wide range, and it is entirely a consequence of testing on only 300
+      people. Had we tested on 3,000 customers instead, the same calculation gives a
+      wobble of about 0.010 — three times tighter. We used 300 because each TabFM
+      result took several minutes to produce, and 3,000 would have taken roughly ten
+      times longer.
+    </p>
+
+    <div class="keypoint">
+      <p class="title">How to read the results in light of that</p>
+      <p>
+        <strong>Differences smaller than about 0.03 should be treated as ties.</strong>
+        We cannot distinguish them. When one method scores 0.781 and another scores
+        0.773, the honest statement is that they performed similarly.
+      </p>
+      <p>
+        <strong>Differences larger than about 0.07 are real.</strong> When gradient
+        boosting scores 0.500 and TabFM scores 0.614 on the same ten customers, that
+        gap is far too large to be an accident of the test group.
+      </p>
+    </div>
+
+    <h3>A second kind of variation, and what it tells us</h3>
+    <p>
+      There is a separate source of wobble worth separating out. Each of our points
+      is the average of three attempts with three different random selections of
+      training customers — and those three results also differ from each other.
+    </p>
+    <p>
+      At 500 training customers, the three attempts scored 0.779, 0.784 and 0.780.
+      At 1,000 they scored 0.778, 0.772 and 0.764. These are tight clusters, and
+      that is informative: <strong>it tells us that which particular customers you
+      train on barely matters</strong>, at least at these sizes.
+    </p>
+    <p>
+      But note carefully what it does <em>not</em> tell us. All three attempts were
+      marked on the same 300 test customers, so their close agreement says nothing
+      about the wobble caused by the test group. The two uncertainties are separate,
+      and only the first one is reduced by averaging.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>What the results show</h2>
+
+    <h3>With very few examples, only TabFM produces anything usable</h3>
+    <p>
+      Given ten training customers, gradient boosting scores 0.500 — no better than
+      guessing, because it cannot justify a single division of the data. TabFM
+      scores 0.614. That difference of 0.114 is well beyond the 0.03 wobble we
+      calculated, so it is a real effect and not an accident of the test group.
+    </p>
+    <p>
+      In practical terms, 0.614 means that if you pick one customer who left and one
+      who stayed, TabFM ranks them correctly about 61% of the time. That is not
+      brilliant. But it is genuinely useful — a retention team working from that
+      ranking would reach considerably more of the right people than one working
+      from an alphabetical list, which is what a score of 0.500 amounts to.
+    </p>
+
+    <h3>TabFM reaches the maximum achievable score with 500 examples</h3>
+    <p>
+      At 500 training customers TabFM scores <strong>0.781</strong>, against a
+      maximum achievable score of 0.792. It has captured essentially everything the
+      data has to offer.
+    </p>
+    <p>
+      Gradient boosting reaches 0.773 — a statistically indistinguishable result —
+      but it needs <strong>8,000</strong> training customers to get there. That is
+      sixteen times as much data for the same outcome.
+    </p>
+    <p>
+      For an organisation, that difference is not academic. Labelling 500 examples
+      might take an afternoon. Labelling 8,000 might take a year, or be impossible.
+    </p>
+
+    <h3>On this data, TabFM was more accurate at every size we tested</h3>
+    <p>
+      We should state this plainly rather than imply it. From 10 training customers
+      to 1,000, TabFM scored higher than both established methods at every single
+      size we measured. Gradient boosting never overtook it within the range we
+      tested.
+    </p>
+    <p>
+      Two honest qualifications belong immediately alongside that sentence. First,
+      we stopped measuring TabFM at 1,000 customers, and gradient boosting was still
+      improving at 8,000 — so we cannot say what would happen further out. Second,
+      this is one dataset. A single experiment establishes that something
+      <em>can</em> happen, not that it always will.
+    </p>
+
+    <h3>About the dip between 500 and 1,000</h3>
+    <p>
+      You may notice that TabFM's score goes slightly down between 500 customers
+      (0.781) and 1,000 (0.772). It would be reasonable to wonder whether more data
+      made it worse.
+    </p>
+    <p>
+      The difference is 0.009. Our calculated wobble is around 0.033, and the three
+      individual attempts at 1,000 customers ranged from 0.764 to 0.778 all by
+      themselves. <strong>The dip is comfortably smaller than the noise, so we
+      cannot tell whether it is real, and we should not treat it as
+      meaningful.</strong>
+    </p>
+    <p>
+      The sensible reading is that TabFM stopped improving somewhere around 500
+      customers — which is exactly what you would expect, because by then it had
+      reached 0.781 against a hard maximum of 0.792. There was almost nothing left
+      to gain.
+    </p>
+
+    <h3>Logistic regression behaves exactly as its design predicts</h3>
+    <p>
+      The simplest method starts respectably, at 0.587 with ten customers, and then
+      levels off around 0.72 no matter how much data it receives. This is the
+      expected consequence of a method that can only add up weighted columns: our
+      invented rule contains curves, thresholds and interactions that no amount of
+      adding up can express. More data cannot fix a limitation of form.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>Were our predictions any good?</h2>
+    <p>
+      We recorded our expectations in advance, so here is the comparison. We think
+      this is the most useful part of the article for a reader trying to calibrate
+      how much to trust anybody's claims about a new method — including ours.
+    </p>
+  </div>
+
+  <div class="scroller">
+    <table class="num">
+      <caption>Predicted in advance, versus measured</caption>
+      <thead>
+        <tr><th>Training customers</th><th>We predicted</th><th>Measured</th><th>Outcome</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="n">25</td><td>0.63 – 0.69</td><td class="c-tab">0.621</td><td>slightly below</td></tr>
+        <tr><td class="n">50</td><td>0.66 – 0.72</td><td class="c-tab">0.629</td><td>below</td></tr>
+        <tr><td class="n">100</td><td>0.68 – 0.74</td><td class="c-tab">0.706</td><td>correct</td></tr>
+        <tr><td class="n">500</td><td>0.72 – 0.76</td><td class="c-tab">0.781</td><td>above</td></tr>
+        <tr><td class="n">1,000</td><td>0.74 – 0.77</td><td class="c-tab">0.772</td><td>correct, at the top</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    We were too optimistic with very few examples and too pessimistic with many. The
+    general shape we predicted — a strong start that flattens out — was right, but
+    we underestimated how quickly TabFM would reach the maximum achievable score.
+  </p>
+  <p>
+    This is the point we most want you to take from Figure 1 and Figure 2 together.
+    Look at 50 training customers, where all three lines very nearly meet. It is
+    tempting to see something meaningful in that crossing point. There is nothing
+    meaningful in it. It is a coincidence of this dataset, these three methods, and
+    the particular settings we chose. On different data it would fall somewhere
+    else, or not happen at all. <strong>Treat every curve in this article as a
+    record of one experiment, not as a law.</strong>
+  </p>
+
+  <div class="sect">
+    <h2>What it costs to run</h2>
+    <p>
+      Accuracy is only half of a decision. The other half is what each method
+      demands of you, and here the three differ enormously.
+    </p>
+
+    <h3>First, one setting that needs explaining</h3>
+    <p>
+      TabFM does not read your examples once. By default it reads them
+      <strong>32 times</strong>, varying slightly on each pass, and averages the
+      answers. This technique is called an <strong>ensemble</strong>, and it is
+      widely used: running something several times with small variations and
+      averaging cancels out the quirks of any single run, giving a more stable
+      result.
+    </p>
+    <p>
+      Each of those 32 passes costs time. For our tests we reduced this setting from
+      32 passes to <strong>one</strong>, because with 32 a single result would have
+      taken about five hours.
+    </p>
+    <p>
+      It is important to understand which direction that adjustment cuts. Averaging
+      32 passes gives a better answer than taking one. So <strong>the real TabFM is
+      somewhat more accurate than the version that produced our numbers.</strong>
+      Every TabFM score in this article is therefore a conservative figure — the
+      genuine article would do at least as well, probably slightly better.
+    </p>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <caption>What each method demands — measured on ordinary hardware</caption>
+      <thead>
+        <tr><th>&nbsp;</th><th>The two established methods</th><th>TabFM</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>Hardware</th>
+          <td>Any laptop.</td>
+          <td class="pick t">A graphics card, or 3&times; the wait without one</td>
+        </tr>
+        <tr>
+          <th>Download before first use</th>
+          <td>A small software library, a few seconds.</td>
+          <td class="pick t">6.56 GB, about a minute</td>
+        </tr>
+        <tr>
+          <th>Time to learn from 200 examples and rank 300 customers</th>
+          <td>The timer read 0.0 seconds.</td>
+          <td class="pick t">80 seconds</td>
+        </tr>
+        <tr>
+          <th>The same, from 1,000 examples</th>
+          <td>Still under a second.</td>
+          <td class="pick t">213 seconds</td>
+        </tr>
+        <tr>
+          <th>Expert attention needed</th>
+          <td>Usually some. Choices must be made and checked.</td>
+          <td class="pick t">None. No settings to tune</td>
+        </tr>
+        <tr>
+          <th>Licence</th>
+          <td>Free for any use, including commercial.</td>
+          <td class="pick t">Non-commercial use only</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Notice that TabFM's time grows with the number of examples — 80 seconds at 200,
+    213 seconds at 1,000 — while the established methods stay effectively instant.
+    There is a reason for that, and it follows directly from how TabFM works.
+  </p>
+  <p>
+    Because its internal numbers never change, <strong>nothing it works out is ever
+    retained</strong>. It re-reads your training examples from scratch for every
+    single customer it assesses. Gradient boosting does its learning once, and from
+    then on answers immediately, forever. That is the true price of not training.
+  </p>
+
+  <h3>What if you have no graphics card at all?</h3>
+  <p>
+    A graphics card is the usual assumption for running something like this, and for
+    many people it is a real obstacle: they do not have one, and would rather not
+    pay for one before knowing whether the idea is worth anything. So it is worth
+    saying plainly that we ran TabFM without one.
+  </p>
+  <p>
+    On an ordinary computer processor, with no graphics card involved, learning from
+    100 examples and ranking all 300 test customers took <strong>3 minutes and 16
+    seconds</strong>. The free graphics card took 80 seconds for a slightly harder
+    version of the same job — learning from 200 examples rather than 100 — which
+    makes the processor roughly <strong>three times slower</strong>. That is
+    noticeably worse, and it is not the twenty-fold penalty you might reasonably
+    have feared.
+  </p>
+  <p>
+    Two things are still required either way: the 6.56 gigabyte download, and enough
+    memory to hold the model while it runs. The machine we used had 12.7 gigabytes
+    of memory, and we would not expect a small laptop to manage.
+  </p>
+  <p>
+    The column-headings experiment described earlier in this article was run
+    entirely this way, without a graphics card, because none was available to us
+    that day. For a modest table and a few hundred customers to rank, an ordinary
+    processor is a perfectly workable way of finding out whether TabFM is worth
+    pursuing at all.
+  </p>
+
+  <h3>What this means if you are considering paying for faster hardware</h3>
+  <p>
+    We measured TabFM's cost precisely enough to plan with. It works out at roughly
+    <strong>0.19 seconds for each pass over each customer being ranked</strong>. So a
+    full-strength run — 32 passes over 3,000 customers — comes to about five hours
+    for a single result.
+  </p>
+  <p>
+    A rented graphics card of the kind available commercially is perhaps three to
+    five times faster than the free one we used. That would bring a full-strength
+    result down to roughly one to one and a half hours. Our full experiment needed
+    21 separate results, so even then it would run for well over a day.
+  </p>
+  <p>
+    The practical conclusion is that paying for hardware does not make the
+    full-strength experiment comfortable — it makes a <em>middle</em> setting
+    comfortable. For example, 8 passes over 1,000 customers costs about 25 minutes
+    per result on free hardware, and around 6 minutes on rented hardware. That is a
+    reasonable working setup, and it is what we would choose for a serious study.
+  </p>
+
+  <div class="sect">
+    <h2>So which should you use?</h2>
+    <p>
+      Here is our practical reading, given everything above.
+    </p>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <caption>Choosing between them</caption>
+      <thead>
+        <tr><th>Your situation</th><th>Use</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>You have a few dozen labelled examples</th>
+          <td class="pick t">TabFM</td>
+          <td>The established methods will return a result no better than guessing.
+              TabFM will give you a usable ranking.</td>
+        </tr>
+        <tr>
+          <th>Labelling more examples is slow, costly or impossible</th>
+          <td class="pick t">TabFM</td>
+          <td>Reaching a given quality on far fewer examples is a direct saving of
+              time and money.</td>
+        </tr>
+        <tr>
+          <th>You have no specialist and want an answer this week</th>
+          <td class="pick t">TabFM</td>
+          <td>Nothing to tune, no choices to get wrong, no data preparation.</td>
+        </tr>
+        <tr>
+          <th>You already have thousands of labelled examples</th>
+          <td class="pick g">Gradient boosting</td>
+          <td>By then it is as accurate as TabFM was on this data, and it answers in
+              under a second on a laptop instead of minutes on a graphics card.</td>
+        </tr>
+        <tr>
+          <th>You need many predictions, quickly or repeatedly</th>
+          <td class="pick g">Gradient boosting</td>
+          <td>TabFM re-reads all its examples for every prediction, so it cannot
+              keep up with high volumes.</td>
+        </tr>
+        <tr>
+          <th>It is going into a product you sell</th>
+          <td class="pick g">Gradient boosting</td>
+          <td>TabFM's weights are licensed for non-commercial use only. This is a
+              hard stop, regardless of how well it performs.</td>
+        </tr>
+        <tr>
+          <th>You need to sort rows into more than ten categories</th>
+          <td class="pick g">Gradient boosting</td>
+          <td>TabFM can distinguish at most ten, and this is fixed in its design. It
+              applies only to questions asking for a named group; if you are
+              predicting a quantity, the limit does not arise.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    To say the important part directly: <strong>on this data, TabFM was more
+    accurate than gradient boosting at every training size we tested.</strong>
+    Accuracy was not the reason to prefer the established method. The reasons to
+    prefer it are speed, running cost, licensing, and the ten-category limit — and
+    those are serious reasons that will decide many real projects.
+  </p>
+  <p>
+    The most useful way to think about it is as a sequence rather than a choice.
+    <strong>Use TabFM at the start</strong>, when you have a promising question, a
+    small pile of labelled examples, and no appetite for a long project to discover
+    whether the idea has merit at all. If the early results are encouraging, gather
+    more examples. <strong>Then switch to gradient boosting</strong>, which by that
+    point will be equally accurate, will run on any laptop in under a second, and
+    carries no licensing restriction.
+  </p>
+
+  <div class="sect">
+    <h2>Running it yourself</h2>
+    <p>
+      If you would like to reproduce this, here is what is involved, with the real
+      timings we recorded.
+    </p>
+  </div>
+
+  <div class="keypoint">
+    <p class="title">Everything here is already written out as a notebook</p>
+    <p>
+      A notebook is a page that holds the code and runs it a step at a time, with an
+      explanation in plain English before each step. Ours carries the install command,
+      the two settings that otherwise turn a single result into a five-hour wait, and
+      the same experiment that produced every number in this article.
+    </p>
+    <p>
+      <a href="https://colab.research.google.com/github/wemeasuredit/wemeasuredit.github.io/blob/main/guides/tabfm/tabfm_churn_demo.ipynb"><strong>Open it in Google Colab</strong></a> and it runs on
+      Google's computers in a browser tab, so there is nothing to install on your own
+      machine and no graphics card to buy. If you would rather run it elsewhere, you
+      can <a href="tabfm_churn_demo.ipynb" download>download the notebook file</a>
+      instead.
+    </p>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <div>
+        <h4>Get access to a graphics card, or decide to do without one</h4>
+        <p>
+          Google Colab provides one at no cost through a web browser. If none is
+          free at the time — the no-cost allowance does run out — Colab will offer
+          you a plain processor instead. That takes about three times as long, and
+          for a small table it is perfectly usable; we ran a whole experiment that
+          way.
+        </p>
+        <p class="wait">About a minute</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>Install TabFM from the source repository</h4>
+        <p>
+          Install from Google's own code repository rather than the general Python
+          package index. The package published under the same name on the index
+          looks for a weights file that does not match what is actually available,
+          so you download several gigabytes and then receive an error.
+        </p>
+        <p class="wait">Under a minute</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>Let it fetch the weights</h4>
+        <p>
+          6.56 gigabytes, on first use only. It is stored locally afterwards, so a
+          second run in the same session begins immediately.
+        </p>
+        <p class="wait">About 66 seconds</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>Reduce the ensemble setting before you begin</h4>
+        <p>
+          This is the step nobody warns you about, and skipping it is why a first
+          attempt appears to hang. As explained earlier, TabFM reads your examples 32
+          times by default. Reduce that, and keep your test group modest, or a single
+          result will take about five hours.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>Run the comparison</h4>
+        <p>
+          Results appear one line at a time as each training size finishes, so you
+          can watch progress and stop early if you need to.
+        </p>
+        <p class="wait">About 15 minutes for the smaller sizes</p>
+      </div>
+    </li>
+  </ol>
+
+  <p>Here is exactly what it printed for us:</p>
+
+  <div class="console">
+<pre>[data] pool=9,000 customers   exam=300 customers   churn in exam=27.3%
+[data] ceiling = 0.792 ROC AUC on this exam (nothing can beat it)
+[cfg ] TabFM: n_estimators=1 (default 32), batch_size=16
+
+<span class="hl">[run] n=   10  Gradient boosting=0.500  Logistic regression=0.587  TabFM=0.614   (TabFM 49s/fit)</span>
+<span class="hl">[run] n=   25  Gradient boosting=0.500  Logistic regression=0.593  TabFM=0.621   (TabFM 51s/fit)</span>
+<span class="hl">[run] n=   50  Gradient boosting=0.615  Logistic regression=0.605  TabFM=0.629   (TabFM 55s/fit)</span>
+<span class="hl">[run] n=  100  Gradient boosting=0.652  Logistic regression=0.674  TabFM=0.706   (TabFM 63s/fit)</span>
+<span class="hl">[run] n=  200  Gradient boosting=0.655  Logistic regression=0.665  TabFM=0.721   (TabFM 80s/fit)</span>
+[run] n=  500  Gradient boosting=0.720  Logistic regression=0.700
+[run] n= 1000  Gradient boosting=0.729  Logistic regression=0.716
+[run] n= 2000  Gradient boosting=0.743  Logistic regression=0.711
+[run] n= 4000  Gradient boosting=0.769  Logistic regression=0.720
+[run] n= 8000  Gradient boosting=0.773  Logistic regression=0.724
+</pre>
+  </div>
+
+  <p>
+    That run stops TabFM at 200 examples, which is as far as fifteen minutes allows.
+    Extending it to 500 and 1,000 is a separate and slower pass, about twenty
+    minutes for six more results:
+  </p>
+
+  <div class="console">
+<pre>[fit] n=  500 seed=0  TabFM auc=0.779  (141s)   running mean=0.779
+[fit] n=  500 seed=1  TabFM auc=0.784  (135s)   running mean=0.782
+[fit] n=  500 seed=2  TabFM auc=0.780  (132s)   running mean=0.781
+<span class="hl">[run] n=  500  TabFM=0.781  (mean of 3 draws)</span>
+[fit] n= 1000 seed=0  TabFM auc=0.778  (212s)   running mean=0.778
+[fit] n= 1000 seed=1  TabFM auc=0.772  (216s)   running mean=0.775
+[fit] n= 1000 seed=2  TabFM auc=0.764  (213s)   running mean=0.772
+<span class="hl">[run] n= 1000  TabFM=0.772  (mean of 3 draws)</span>
+</pre>
+  </div>
+
+  <p>
+    Two results that look like failures but are not. TabFM will report a score below
+    0.792, and that is correct — 0.792 cannot be reached, so landing near it is
+    success. And if you leave the ensemble setting at its default, the program will
+    appear to freeze. It has not crashed; it is working through roughly 96,000
+    separate calculations one after another, and would finish in about five hours.
+  </p>
+
+  <div class="sect">
+    <h2>What we do not know</h2>
+    <p>
+      Everything above came from one experiment on one invented dataset. Here is
+      what that experiment genuinely could not establish, and what each gap would
+      take to close.
+    </p>
+
+    <h3>How TabFM performs at full strength</h3>
+    <p>
+      Every TabFM score here came from a version reading the examples once instead of
+      32 times. Since averaging 32 readings produces a better answer than one, the
+      real model is more accurate than our figures suggest — but we do not know by
+      how much. It could be a rounding difference, or it could be a further 0.02.
+      Closing this gap needs a faster graphics card and roughly a day of running.
+    </p>
+
+    <h3>What happens beyond 1,000 examples</h3>
+    <p>
+      We stopped measuring TabFM at 1,000 training customers because each result took
+      three and a half minutes. Gradient boosting was still improving at 8,000. It is
+      entirely possible that gradient boosting eventually overtakes TabFM, and we
+      cannot say otherwise from our data. In practice this may not matter much,
+      because both were already close to the 0.792 maximum by then — but "may not
+      matter" is not the same as "we checked".
+    </p>
+
+    <h3>Whether any of this transfers to other problems</h3>
+    <p>
+      This is the largest gap. We tested one invented churn problem with thirteen
+      columns and two possible answers. We do not know how TabFM behaves on data with
+      hundreds of columns, on problems with several possible categories, on questions
+      asking for a quantity rather than a named group, on genuinely
+      messy real-world records, or on any question whose underlying structure is
+      unlike the invented worlds TabFM practised on. Recall that its advantage comes
+      precisely from expectations formed on those worlds — so a problem shaped
+      unlike them is exactly where it would be expected to disappoint.
+    </p>
+
+    <h3>What other people have measured, and what their measurement cannot tell you</h3>
+    <p>
+      We are not the only people to have tested TabFM, and a far broader test than
+      ours already exists. Google reports having evaluated it on
+      <strong>TabArena</strong>, a public collection of real datasets kept for
+      comparing methods of this kind: 38 of them asking for a named group and 13
+      asking for a quantity, ranging in size from 700 rows to 150,000. They report
+      that TabFM came out ahead of established methods which had been carefully
+      tuned for each dataset individually.
+    </p>
+    <p>
+      TabArena ranks methods by an <strong>Elo rating</strong>, the arrangement used
+      to rank chess players. Every pair of methods is compared on every dataset,
+      whichever one wins more of those head-to-head contests rises, and the rating
+      summarises the whole tournament as a single number.
+    </p>
+    <p>
+      That collection covers far more ground than our one invented dataset, and it
+      uses real data, which ours is not. On the question of whether TabFM works in
+      general, it is the stronger evidence, and we would not pretend otherwise.
+    </p>
+    <p>
+      It answers a different question from ours, though, and the difference is worth
+      seeing, because it is the reason this article is worth having alongside that
+      benchmark. An Elo rating tells you which method beat which. It cannot tell you
+      <strong>how much of the available signal was captured</strong>, because on real
+      data nobody knows the rule that produced the outcomes, so nobody knows what the
+      best possible score would have been. We do know ours, because we wrote the
+      rule — which is what lets us say that 0.781 against a maximum of 0.792 means
+      essentially everything the data had to offer, and not merely "better than the
+      other two".
+    </p>
+    <p>
+      There is a second difference, and it is the more practical one. TabArena's
+      smallest dataset has 700 rows. The claim that matters most to a reader who does
+      not have much data — that you can get something usable from ten examples, or
+      fifty — sits below the range that benchmark covers at all. That range is
+      exactly what we measured.
+    </p>
+
+    <h3>How well it explains itself</h3>
+    <p>
+      We measured only ranking quality. We did not investigate whether TabFM can
+      indicate <em>why</em> it considers a particular customer at risk, which in many
+      regulated industries is a requirement rather than a nicety. Given that its
+      learning procedure was never written down by anyone, we would expect this to be
+      difficult.
+    </p>
+
+    <h3>Whether it holds up on data that is not invented</h3>
+    <p>
+      Our dataset was built to be realistic — curves, thresholds, interactions,
+      unpredictable randomness and missing values. But it was built by us, and we
+      knew its structure while designing the test. A genuinely convincing result would
+      repeat this on several real datasets from different industries, where nobody
+      knows the answer in advance.
+    </p>
+  </div>
+
+  <div class="sect">
+    <h2>Conclusions</h2>
+    <p>
+      This has been a long article, so here is the whole of it brought back together.
+    </p>
+    <p>
+      <strong>The problem.</strong> Filling in a missing column of a spreadsheet —
+      which customers will leave, which invoices will go unpaid — is the most common
+      prediction task in business. The established methods for doing it are accurate
+      but need a great deal of labelled data before they produce anything useful at
+      all, and they usually need a specialist.
+    </p>
+    <p>
+      <strong>What TabFM does differently.</strong> It never trains on your data. Its
+      internal numbers are fixed, and your examples are read afresh each time it makes
+      a prediction. It was prepared entirely on hundreds of millions of invented
+      tables, which means it has never seen a real spreadsheet and does not know what
+      a bank is. It does not read your column headings either — we checked that
+      directly, by disguising the headings and finding that every prediction came back
+      unchanged. What it learned from those
+      invented worlds was not knowledge but a procedure: how to work out the structure
+      of a table from very few rows.
+    </p>
+    <p>
+      <strong>What we measured.</strong> On our invented churn problem, with a
+      maximum achievable score of 0.792: from ten labelled customers TabFM scored
+      0.614 while gradient boosting scored 0.500, which is the same as guessing. From
+      500 labelled customers TabFM scored 0.781, essentially the maximum. Gradient
+      boosting needed 8,000 customers to reach a comparable 0.773 — sixteen times the
+      data. Across every size we tested, TabFM was the more accurate method.
+    </p>
+    <p>
+      <strong>What it costs.</strong> A 6.56 gigabyte download, and between 49
+      seconds and three and a half minutes per result on a graphics card — against
+      effectively zero for the established methods on an ordinary laptop. A graphics
+      card is not strictly required: without one the same work takes about three
+      times as long, which for a small table is a perfectly reasonable way to
+      begin. Its weights may not be
+      used in a commercial product. When sorting rows into named groups it can
+      distinguish at most ten of them, although that limit does not arise when it is
+      predicting a quantity instead.
+    </p>
+    <p>
+      <strong>How much to trust these numbers.</strong> Our test group of 300
+      customers gives every score a margin of roughly 0.03, so differences smaller
+      than that are ties. This is one experiment on one invented dataset, and the
+      curves are a record of what happened here, not laws that will hold elsewhere.
+      Google has published a much broader test, on 51 real datasets, which is
+      stronger evidence that TabFM works in general — but it starts at 700 rows, so
+      it says nothing about the very small numbers of examples this article is
+      about, and it cannot say how close any method came to the best score
+      achievable.
+    </p>
+    <p class="lede">
+      <strong>The practical takeaway.</strong> TabFM changes what you can do at the
+      beginning of a project, when you have a good question and hardly any labelled
+      data. You can now get a genuine, useful answer from a few dozen examples,
+      without hiring a specialist, and decide on that basis whether the idea deserves
+      real investment. Once you have thousands of examples, the established methods
+      become just as accurate and are far cheaper to run — so the sensible path is to
+      start with TabFM and move on when the data justifies it.
+    </p>
+  </div>
+
+  <!-- NOTHING IS OFFERED OR ASKED FOR IN THE BODY OF A GUIDE. Cesar, 11 August 2026: the
+       "get in touch" invitation belongs in the site's own navigation — a footer or frame
+       listing Getting help, Other guides — not inside the article. A guide that ends by
+       offering you something is selling; a guide that ends and lets you notice the rest of
+       the site is not. A block offering his help was added here on 11 August and removed
+       the same day for that reason. Reasoning in MONETISATION.md, Part 5. -->
+
+  <p class="footnote">
+    About the sources — TabFM is described in
+    <a href="https://research.google/blog/introducing-tabfm-a-zero-shot-foundation-model-for-tabular-data/">Google Research's announcement</a>,
+    with code at
+    <a href="https://github.com/google-research/tabfm">google-research/tabfm</a>
+    and weights published on
+    <a href="https://huggingface.co/google/tabfm-1.0.0-pytorch">Hugging Face</a>.
+    The statements that it was prepared entirely on invented data, that a
+    prediction is a single pass through the network, that it answers questions
+    asking for a quantity as well as questions asking for a named group, and the
+    TabArena results quoted here — 38 datasets of the first kind and 13 of the
+    second, from 700 to 150,000 rows, ranked by Elo rating — all come from that
+    announcement. We did not repeat the TabArena evaluation ourselves.
+    Whether the model also reads column headings is not stated there, so we
+    measured it ourselves on 8 August 2026, on a Google Colab runtime without a
+    graphics card; that test, and the check that the test was working, are
+    described in full on this page. All accuracy and timing figures on this page
+    were
+    measured by us on 7 August 2026 using a Google Colab T4 graphics card. The
+    five-hour and one-hour figures are calculated from the measured cost of 0.19
+    seconds per pass per customer ranked, and are described as calculations wherever
+    they appear. The margin of error uses the method of Hanley and McNeil (1982).
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById("themeToggle");
+
+    function systemPrefersDark() {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    function isDark() {
+      var stamped = root.getAttribute("data-theme");
+      return stamped ? stamped === "dark" : systemPrefersDark();
+    }
+    function sync() {
+      var dark = isDark();
+      btn.textContent = dark ? "Light" : "Dark";
+      btn.setAttribute("aria-pressed", String(dark));
+    }
+
+    btn.addEventListener("click", function () {
+      root.setAttribute("data-theme", isDark() ? "light" : "dark");
+      sync();
+    });
+
+    window.matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", function () {
+        if (!root.getAttribute("data-theme")) sync();
+      });
+
+    sync();
+  })();
+</script>
+
+</body>
+</html>

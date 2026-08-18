@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>We Measured It</title>
+<meta name="description" content="Guides that take a claim somebody is making, test it on an example small enough to follow, and say plainly how the numbers came out.">
+<style>
+  :root {
+    color-scheme: light;
+    --paper:     #f6f7f2;
+    --panel:     #ffffff;
+    --ink:       #14201a;
+    --ink-soft:  #566055;
+    --ink-faint: #7c857a;
+    --rule:      #ccd4c4;
+    --rule-soft: #dfe5d8;
+    --tabfm:     #2a78d6;
+
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --body: "Sitka Text", Charter, "Bitstream Charter", Cambria, Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --paper:     #141815;
+      --panel:     #191e1a;
+      --ink:       #eef1ea;
+      --ink-soft:  #a9b2a6;
+      --ink-faint: #7f887d;
+      --rule:      #2f382f;
+      --rule-soft: #232b24;
+      --tabfm:     #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper:     #141815;
+    --panel:     #191e1a;
+    --ink:       #eef1ea;
+    --ink-soft:  #a9b2a6;
+    --ink-faint: #7f887d;
+    --rule:      #2f382f;
+    --rule-soft: #232b24;
+    --tabfm:     #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.64;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 40em; margin: 0 auto; }
+
+  header { padding: 72px 0 0; border-bottom: 1px solid var(--rule); }
+  .runhead {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-size: clamp(30px, 6vw, 44px);
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+  }
+  .standfirst {
+    font-size: clamp(17px, 2.2vw, 20px);
+    color: var(--ink-soft);
+    margin: 0 0 34px;
+    text-wrap: pretty;
+  }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 44px 0 18px;
+  }
+
+  .guide {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--rule-soft);
+    border-left: 3px solid var(--tabfm);
+    padding: 22px 24px;
+    margin: 0 0 18px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .guide:hover, .guide:focus-visible { border-color: var(--tabfm); }
+  .guide h3 {
+    font-size: 21px;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    color: var(--tabfm);
+  }
+  .guide p { margin: 0; color: var(--ink-soft); font-size: 16px; }
+  .guide .meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 12px;
+  }
+
+  a { color: var(--tabfm); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--tabfm); outline-offset: 3px; border-radius: 2px; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-faint);
+    font-size: 15px;
+  }
+  footer p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="runhead">We Measured It</p>
+    <h1>Claims about data tools, tested on examples small enough to follow.</h1>
+    <p class="standfirst">
+      Each guide takes a claim somebody is making, runs it on a problem you can hold in
+      your head, and says plainly how the numbers came out — including the times they
+      came out badly. Everything here was measured rather than repeated.
+    </p>
+  </header>
+
+  <h2>Guides</h2>
+
+  <a class="guide" href="guides/tabfm/">
+    <h3>Getting answers from a spreadsheet, without an expert and without much data</h3>
+    <p>
+      Google released TabFM, a model that claims to make predictions from a table it has
+      never seen, using as few as ten example rows. We invented a dataset where the right
+      answer is known exactly, so there is a ceiling to measure against, and ran TabFM
+      against the two methods it would have to beat.
+    </p>
+    <p class="meta">TabFM · measured on 12,000 invented customers</p>
+  </a>
+
+  <footer>
+    <p>Written by Cesar Delgado.</p>
+    <p><a href="mailto:wemeasuredit@gmail.com">wemeasuredit@gmail.com</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
