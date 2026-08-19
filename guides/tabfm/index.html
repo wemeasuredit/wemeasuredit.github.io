@@ -2316,12 +2316,28 @@
 
     <h3>What happens beyond 1,000 examples</h3>
     <p>
-      We stopped measuring TabFM at 1,000 training customers because each result took
-      three and a half minutes. Gradient boosting was still improving at 8,000. It is
-      entirely possible that gradient boosting eventually overtakes TabFM, and we
-      cannot say otherwise from our data. In practice this may not matter much,
-      because both were already close to the 0.792 maximum by then — but "may not
-      matter" is not the same as "we checked".
+      The measurements above stop at 1,000 training customers, because each result took
+      three and a half minutes and the cost grows with every extra row. Gradient boosting
+      was still improving at 8,000, so the obvious worry is that it eventually overtakes
+      TabFM somewhere we never looked.
+    </p>
+    <p>
+      <strong>We have since looked one step further.</strong> The companion notebook runs
+      the same comparison out to <strong>2,000 training customers</strong>, and there
+      TabFM scored <strong>0.769</strong> against gradient boosting's <strong>0.743</strong>.
+      So gradient boosting had still not overtaken it at twice the largest size in the
+      table above. That measurement took six minutes for a single result, which is why it
+      is the last one we have.
+    </p>
+    <p>
+      <strong>The question is narrowed rather than closed, and the honest position is
+      this.</strong> At every size where both were measured, TabFM was ahead. Above 2,000
+      we simply have not run TabFM, so we cannot tell you what happens there. What we can
+      say is that gradient boosting needed <strong>4,000</strong> customers to reach 0.769
+      — the score TabFM reached with 2,000, and roughly what it had already reached with
+      500. In practice the whole argument may matter less than it sounds, because both are
+      close to the 0.792 maximum by then. But "may not matter" is not the same as
+      "we checked".
     </p>
 
     <h3>Whether any of this transfers to other problems</h3>
