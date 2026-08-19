@@ -2251,6 +2251,29 @@
     </li>
   </ol>
 
+  <div class="keypoint">
+    <p class="title">The exact scripts that produced the numbers below</p>
+    <p>
+      The console output on this page is not a summary of what we ran — it is the
+      output, copied out unchanged. If you want to reproduce it rather than learn from
+      it, these are the three files that made it, and they take about half an hour on a
+      free graphics card:
+    </p>
+    <p>
+      <a href="colab_run.py" download>colab_run.py</a> invents the customer data and
+      builds the two traditional methods.
+      <a href="mini_demo.py" download>mini_demo.py</a> produces the first block of output
+      below; <a href="mini_extend.py" download>mini_extend.py</a> produces the second.
+      Upload all three to a Google Colab notebook, then run
+      <code>exec(open("mini_demo.py").read())</code>.
+    </p>
+    <p>
+      <strong>Import <code>colab_run.py</code>, never run it directly.</strong> Running it
+      on its own starts the full 3,000-customer version of the experiment, which is the
+      five-hour path described above. The other two import what they need from it.
+    </p>
+  </div>
+
   <p>Here is exactly what it printed for us:</p>
 
   <div class="console">
